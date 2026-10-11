@@ -25,12 +25,12 @@ API_ID = 32575234
 API_HASH = "8db65d2e27b251119e122852d94a019c"
 
 # ⚠️ DIQQAT: BU YERGA O'ZINGIZNING GOOGLE API KALITINGIZNI YOZING
-GEMINI_API_KEY = "AQ.Ab8RN6JU7WopIx0ZRZZMfblmdlm6e9GfXgF1BMaP4LW2tnkFqQ"
+GEMINI_API_KEY = "AQ.Ab8RN6Ls_NT07oG2KEQoaJ0eQp284PpNGqvgeS9khv_8tJb3Bg"
 
 # Mijozlarni faollashtirish
 client = TelegramClient("my_personal_assistant_session", 32575234
 , '8db65d2e27b251119e122852d94a019c')
-ai_client = genai.Client(api_key=GEMINI_API_KEY)
+ai_client = genai.Client(api_key='AQ.Ab8RN6Ls_NT07oG2KEQoaJ0eQp284PpNGqvgeS9khv_8tJb3Bg')
 
 chat_sessions = {}
 
