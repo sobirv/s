@@ -104,3 +104,16 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    # Render tekin veb-servisda o'chib qolmasligi uchun soxta port ochish
+from http.server import SimpleHTTPRequestHandler, HTTPServer
+import threading
+import os
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+    server.serve_forever()
+
+# Portni alohida oqimda ishga tushiramiz
+threading.Thread(target=run_dummy_server, daemon=True).start()
+
