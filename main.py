@@ -1,19 +1,36 @@
 import asyncio
+import os
+import threading
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 from telethon import TelegramClient, events
 from google import genai
 from google.genai import types
 
-# Sizning haqiqiy Telegram ma'lumotlaringiz
+# 1. RENDER TEKIN WEB SERVICE-DA O'CHIB QOLMASLIGI UCHUN SOXTA PORT OCHISH
+def run_dummy_server():
+    try:
+        port = int(os.environ.get("PORT", 10000))
+        server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+        print(f"🌍 Soxta veb-port {port} da ishga tushdi.")
+        server.serve_forever()
+    except Exception as e:
+        print(f"Soxta serverda xatolik: {e}")
+
+# Portni alohida oqimda (fonda) ishga tushiramiz
+threading.Thread(target=run_dummy_server, daemon=True).start()
+
+
+# 2. TELEGRAM VA GEMINI SOZLAMALARI
 API_ID = 32575234
 API_HASH = "8db65d2e27b251119e122852d94a019c"
 
-# Google AI Studio'dan olgan kalitingizni shu yerga yozing
+# ⚠️ DIQQAT: BU YERGA O'ZINGIZNING GOOGLE API KALITINGIZNI YOZING
 GEMINI_API_KEY = "AQ.Ab8RN6JU7WopIx0ZRZZMfblmdlm6e9GfXgF1BMaP4LW2tnkFqQ"
 
 # Mijozlarni faollashtirish
 client = TelegramClient("my_personal_assistant_session", 32575234
-, "8db65d2e27b251119e122852d94a019c")
-ai_client = genai.Client(api_key="AQ.Ab8RN6JU7WopIx0ZRZZMfblmdlm6e9GfXgF1BMaP4LW2tnkFqQ")
+, '8db65d2e27b251119e122852d94a019c')
+ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 chat_sessions = {}
 
@@ -23,10 +40,9 @@ SYSTEM_PROMPT = (
     "Muloqot uslubingiz o'zbekona, do'stona va xushmuomala bo'lsin.\n"
     "1. Agarda foydalanuvchi salom bersa, birinchi xabarda alik oling, ikkinchi xabarda hol-ahvol so'rang.\n"
     "2. Agar u sizdan hol-ahvol so'rasa: 'Ha zo'rman, Xudoga shukur, o'zingizda nima gaplar?' deb javob bering.\n"
-    "3. Hech qachon bot ekanligingizni aytmang. Javoblaringiz qisqa bo'lsin va har bir gap yeni qatordan boshlansin."
+    "3. Hech qachon bot ekanligingizni aytmang. Javoblaringiz qisqa bo'lsin va har bir gap yangi qatordan boshlansin."
 )
 
-# Faolatni barcha shaxsiy xabarlar (matn, ovoz, rasm va hk) uchun faollashtiramiz
 @client.on(events.NewMessage(incoming=True, func=lambda e: e.is_private))
 async def reply_handler(event):
     user_id = event.sender_id
@@ -41,27 +57,19 @@ async def reply_handler(event):
     except Exception:
         chat = event.chat_id
 
-    # 1. OVOZLI XABARLARNI TEKSHIRISH (Voice yoki Audio bo'lsa)
+    # OVOZLI XABARLARNI TEKSHIRISH
     if event.message.voice or event.message.audio:
-        await asyncio.sleep(1.5) # Odamdek kutish
-        # Ovozli xabar kelgandagi samimiy javob matni
-        voice_reply_1 = "Hozir ovozli xabarni eshita olmaydigan joyda edim-da 🙈"
-        voice_reply_2 = "Iloji bo'lsa, qisqacha matn ko'rinishida yozib yubora olasizmi? Darhol javob beraman."
-        
-        await client.send_message(chat, voice_reply_1)
+        await asyncio.sleep(1.5)
+        await client.send_message(chat, "Hozir ovozli xabarni eshita olmaydigan joyda edim-da 🙈")
         await asyncio.sleep(1.2)
-        await client.send_message(chat, voice_reply_2)
-        print("🎙 Ovozli xabarga avtomatik rad javobi yuborildi.")
-        return # Kod shu yerda to'xtaydi, Gemini-ga so'rov ketmaydi
+        await client.send_message(chat, "Iloji bo'lsa, qisqacha matn ko'rinishida yozib yubora olasizmi? Darhol javob beraman.")
+        return
 
-    # 2. MATNLI XABARLAR BILAN ISHLASH (Gemini AI)
+    # MATNLI XABARLAR BILAN ISHLASH
     user_text = event.text if event.text else ""
-    
-    # Agar xabarda matn ham bo'lmasa (masalan faqat rasm yoki stiker bo'lsa)
     if not user_text:
         return
 
-    # Har bir foydalanuvchi uchun alohida chat sessiyasi
     if user_id not in chat_sessions:
         try:
             chat_sessions[user_id] = ai_client.chats.create(
@@ -75,45 +83,29 @@ async def reply_handler(event):
             print(f"❌ Gemini sessiya yaratishda xatolik: {e}")
             return
 
-    # AI javobini olish va yuborish
     try:
         response = chat_sessions[user_id].send_message(user_text)
         ai_reply = response.text
         
-        # Matnni qatorlar bo'yicha bo'lish
         messages_to_send = [msg.strip() for msg in ai_reply.split('\n') if msg.strip()]
-        
         if len(messages_to_send) == 1:
             messages_to_send = [msg.strip() for msg in ai_reply.split('.') if msg.strip()]
 
         for message_part in messages_to_send:
             await asyncio.sleep(len(message_part) * 0.05 + 0.6)
             await client.send_message(chat, message_part)
-            print(f"✅ Xabar muvaffaqiyatli yuborildi: {message_part}")
+            print(f"✅ Xabar yuborildi: {message_part}")
             
     except Exception as e:
-        print(f"❌ Gemini xabar yuborishda xatolik: {e}")
+        print(f"❌ Gemini xatoligi: {e}")
         await client.send_message(chat, "Assalomu alaykum!")
         await asyncio.sleep(1)
         await client.send_message(chat, "Yaxshimisiz? Hojayin hozir biroz band edilar, tarmoqqa kirishlari bilan o'zlari sizga yozadilar.")
 
 async def main():
     await client.start()
-    print("🤖 Bot (Ovozli xabarni sezuvchi variant) ishga tushdi va xabarlarni kutmoqda...")
+    print("🤖 Bot (Port integratsiyasi bilan) muvaffaqiyatli ishga tushdi...")
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
     asyncio.run(main())
-    # Render tekin veb-servisda o'chib qolmasligi uchun soxta port ochish
-from http.server import SimpleHTTPRequestHandler, HTTPServer
-import threading
-import os
-
-def run_dummy_server():
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
-    server.serve_forever()
-
-# Portni alohida oqimda ishga tushiramiz
-threading.Thread(target=run_dummy_server, daemon=True).start()
-
